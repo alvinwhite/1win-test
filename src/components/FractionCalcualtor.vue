@@ -139,6 +139,7 @@ export default {
             if(validations.denominator) {
                 fraction.denominator = Number(fraction.denominator)
             }
+            // No need to check for validation, because string < number is false anyway
             if(fraction.numerator < 0 && fraction.denominator < 0) {
                 fraction.numerator = Math.abs(fraction.numerator)
                 fraction.denominator = Math.abs(fraction.denominator)
@@ -274,6 +275,10 @@ export default {
         }
     },
     computed: {
+        /**
+         * Provides our fractions with some computed properties 
+         * and sorts it according to the fraction.order property as well
+         */
         fractionsArray() {
             return Object
                 .values(this.fractions)
@@ -342,7 +347,7 @@ export default {
                 return this.reduce(result)
             }
 
-            return {numerator: '???', denominator: '???'}
+            return {numerator: '??', denominator: '??'}
         }
     }
 }
