@@ -50,22 +50,26 @@ export default {
         }
     },
     methods: {
-        deleteComment(id) {
-            this.comments[id].pending = true
-            this.ws.send(this.requestCounter)
+        deleteComment(commentId) {
+            const requestId = this.requestCounter
 
-            this.$set(this.requests, this.requestCounter, {
-                requestId: this.requestCounter,
-                commentId: id 
+            this.comments[commentId].pending = true
+            this.ws.send(requestId)
+
+            this.$set(this.requests, requestId, {
+                requestId,
+                commentId
             })
 
             this.requestCounter++ 
 
             /** 
              * If server doesn't respond in time, we stop waiting
+             * and remove the request from the table
             */
             setTimeout(() => {
-                this.comments[id].pending = false
+                if(this.requests[requestId]) this.$delete(this.requests, requestId)
+                if(this.comments[commentId]) this.comments[commentId].pending = false
             }, this.pendingTimeout)
         },
         handleMessage(msg) {
