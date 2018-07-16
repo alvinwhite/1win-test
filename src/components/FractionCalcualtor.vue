@@ -19,7 +19,7 @@
                         :id="'result'"
                         :denominator="result.denominator"
                         :numerator="result.numerator"
-                        :negative="isNegative(result)"
+                        :negative="isFractionNegative(result)"
                         :operation="'='"
                         :editable="false"
                         class="calculator__fraction"
@@ -39,10 +39,11 @@
 import Fraction from './Fraction.vue'
 import nanoid from 'nanoid'
 import numericOperations from '@/mixins/numericOperations'
+import fractionOperations from '@/mixins/fractionOperations'
 
 export default {
     components: { Fraction },
-    mixins: [numericOperations],
+    mixins: [numericOperations, fractionOperations],
     data() {
         return {
             fractions: {
@@ -65,72 +66,48 @@ export default {
             operationTypes: {
                 '+': {
                     presedence: 1,
-                    calculate: (a,b) => {
-                        const lcd = a.denominator === b.denominator ? a.denominator : this.getLCD([a.denominator,b.denominator])
-                        const numerator = 
-                              this.getNumeratorMultiplier(a, lcd) * a.numerator
-                              + this.getNumeratorMultiplier(b, lcd) * b.numerator 
-
-                        return {
-                            numerator,
-                            denominator: lcd
-                        }
-                    }
                 },
                 '-': {
                     presedence: 1,
-                    calculate: (a,b) => {
-                        const lcd = a.denominator === b.denominator ? a.denominator : this.getLCD([a.denominator,b.denominator])
-                        const numerator = 
-                              this.getNumeratorMultiplier(b, lcd) * a.numerator 
-                              - this.getNumeratorMultiplier(a, lcd) * b.numerator
-
-                        return {
-                            numerator,
-                            denominator: lcd
-                        }
-                    }
                 }, 
                 '*': {
                     presedence: 2,
-                    isValid: (a,b) => {
-                        return a.denominator * b.denominator === 0 ? false : true 
-                    },
-                    calculate: (a,b) => {
-                        return {
-                            numerator: a.numerator * b.numerator,
-                            denominator: a.denominator * b.denominator
-                        }
-                    }
                 },
                 '/': {
                     presedence: 2,
-                    isValid: (a,b) => {
-                        return a.denominator * b.numerator === 0 ? false : true 
-                    },
-                    calculate: (a,b) => {
-                        return {
-                            numerator: a.numerator * b.denominator,
-                            denominator: a.denominator * b.numerator
-                        }
-                    }
                 },
                 ':': {
                     presedence: 2,
-                    isValid: (a,b) => {
-                        return a.denominator * b.numerator === 0 ? false : true 
-                    },
-                    calculate: (a,b) => {
-                        return {
-                            numerator: a.numerator * b.denominator,
-                            denominator: a.denominator * b.numerator
-                        }
-                    }
                 }
             }
         }
     },
     methods: {
+        isValidForOperation(operation, a, b) {
+            switch(operation) {
+            case '*':
+                return this.areValidMultiplyArgs(a,b)
+            case '/':
+                return this.areValidDevisionArgs(a,b)
+            default:
+                return true 
+            }
+        },
+        calculate(operation, a, b) {
+            switch(operation) {
+            case '+':
+                return this.fractionSum(a,b)
+            case '-':
+                return this.fractionSubsctraction(a,b)
+            case '*':
+                return this.fractionMultiply(a,b)
+            case '/':
+                return this.fractionDivide(a,b)
+            default:
+                return 0
+            }
+
+        },
         handleFractionInput(fraction) {
             const validations = this.validateFraction(fraction)
             if(validations.numerator) {
@@ -157,68 +134,13 @@ export default {
             const validations = {
                 numerator: this.isNumeric(fraction.numerator),
                 denominator: this.isNumeric(fraction.denominator) && Number(fraction.denominator) !== 0,
-                operation: typeof fraction.operation === 'string' && Object.keys(this.operationTypes).includes(fraction.operation)
+                operation: typeof fraction.operation === 'string' && this.allowedOperationTypes.includes(fraction.operation)
             }
 
             return {
                 valid: validations.numerator && validations.denominator,
                 validations
             }
-        },
-        /**
-         * Checks if a fraction is negative
-         * @param {object} fraction
-         * @return {boolean}
-         */
-        isNegative(fraction) {
-            return (fraction.numerator < 0 && fraction.denominator > 0) || (fraction.numerator > 0 && fraction.denominator < 0)
-        },
-        reduce(fraction) {
-            const gcd = this.gcd(fraction.numerator, fraction.denominator)
-            return {
-                ...fraction, 
-                numerator: fraction.numerator / gcd,
-                denominator: fraction.denominator / gcd 
-            }
-        },
-        /** 
-         * Calculates and returns greatest common divisor
-         * 
-         * @param {number} a
-         * @param {number} b
-         * @return {number}
-        */
-        gcd(a, b) {
-            return !b ? a : this.gcd(b, a % b)
-        },
-        /** 
-         * Calculates and returns least common multiplier
-         * 
-         * @param {number} a
-         * @param {number} b
-         * @return {number}
-        */
-        lcm(a, b) {
-            return a * (b / this.gcd(a,b))
-        },
-        /** 
-         * Given set of denominators, returns the least common denominator
-         * 
-         * @param {array} denominators
-         * @return {number}
-        */
-        getLCD(denominators) {
-            return denominators.reduce(this.lcm)
-        },
-        /** 
-         * Calculates and returns numerator multiplier, given fraction and lesat common denominator
-         * 
-         * @param {object} fraction
-         * @param {number} lcd
-         * @return {number}
-        */
-        getNumeratorMultiplier(fraction, lcd) {
-            return lcd / fraction.denominator
         },
         /**
          * Converts chain of tokens to the Reverse Polish Notation using Shunting-Yard Algorithm
@@ -275,6 +197,9 @@ export default {
         }
     },
     computed: {
+        allowedOperationTypes() {
+            return Object.keys(this.operationTypes)
+        }, 
         /**
          * Provides our fractions with some computed properties 
          * and sorts it according to the fraction.order property as well
@@ -284,7 +209,7 @@ export default {
                 .values(this.fractions)
                 .map(fraction => ({
                     ...fraction,
-                    negative: this.isNegative(fraction),
+                    negative: this.isFractionNegative(fraction),
                     validation: this.validateFraction(fraction)
                 }))
                 .sort((a,b) => b.order - a.order)
@@ -324,12 +249,10 @@ export default {
                 const rhsValidity = rhs && this.validateFraction(rhs).valid
                 let valid = lhsValidity && rhsValidity
                 
-                if (valid && operation.isValid) {
-                    valid = operation.isValid(lhs, rhs)
-                }
 
                 if (valid) {
-                    stack.push(operation.calculate(lhs, rhs))
+                    valid = this.isValidForOperation(token.value, lhs, rhs)
+                    stack.push(this.calculate(token.value,lhs, rhs))
                     continue
                 } 
 
@@ -344,7 +267,7 @@ export default {
             const result = stack.pop()
 
             if(result && this.validateFraction(result).valid) {
-                return this.reduce(result)
+                return this.reduceFraction(result)
             }
 
             return {numerator: '??', denominator: '??'}
